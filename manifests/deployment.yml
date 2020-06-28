@@ -1,0 +1,16 @@
+apiVersion : apps/v1beta1
+kind: Deployment
+metadata:
+  name: "devcluster-0bce"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: "devcluster-0bce"
+    spec:
+      containers:
+        - name: "devcluster-0bce"
+          image: "sydneyacr.azurecr.io/devcluster"
+          ports:
+          - containerPort: 8080
