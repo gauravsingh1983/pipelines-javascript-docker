@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: sydneyacr.azurecr.io
+        username: ${{ secrets.acr_sydneyacr_username }}
+        password: ${{ secrets.acr_sydneyacr_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/app" -f  "app/Dockerfile" -t sydneyacr.azurecr.io/devcluster:${{ github.sha }}
+        docker push sydneyacr.azurecr.io/devcluster:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_devcluster_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep devcluster2fd6 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace devcluster2fd6`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: devcluster2fd6
+        container-registry-url: sydneyacr.azurecr.io
+        container-registry-username: ${{ secrets.acr_sydneyacr_username }}
+        container-registry-password: ${{ secrets.acr_sydneyacr_password }}
+        secret-name: devclusterdockerauth
+       
+    - uses: azure/k8s-deploy@v1
+      with:
+        namespace: devcluster2fd6
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          sydneyacr.azurecr.io/devcluster:${{ github.sha }}
+        imagepullsecrets: |
+          devclusterdockerauth
